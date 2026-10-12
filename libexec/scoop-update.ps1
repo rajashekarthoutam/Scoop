@@ -158,7 +158,8 @@ function Sync-Bucket {
     )
     Write-Host 'Updating Buckets...'
 
-    if (!(Test-Path (Join-Path (Find-BucketDirectory 'main' -Root) '.git'))) {
+    # [CUSTOM-PATCH: rajashekarthoutam/Scoop] Guard against missing 'main' bucket
+    if ((Get-LocalBucket) -contains 'main' -and !(Test-Path (Join-Path (Find-BucketDirectory 'main' -Root) '.git'))) {
         info "Converting 'main' bucket to git repo..."
         $status = rm_bucket 'main'
         if ($status -ne 0) {
