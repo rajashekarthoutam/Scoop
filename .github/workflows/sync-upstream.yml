@@ -1,0 +1,50 @@
+name: Sync Upstream Scoop Engine
+
+on:
+  schedule:
+    # Run daily at 05:00 UTC
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    name: Sync Fork with ScoopInstaller/Scoop & Verify Patch Guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch Upstream & Merge
+        run: |
+          git remote add upstream https://github.com/ScoopInstaller/Scoop.git || true
+          git fetch upstream master
+          # Attempt clean merge from upstream master
+          git merge upstream/master --no-edit -m "ci: sync upstream Scoop engine" || {
+            echo "::error::Merge conflict detected while syncing from upstream. Manual resolution required."
+            exit 1
+          }
+
+      - name: Verify ENG-01 Custom Patch Integrity
+        run: |
+          echo "Verifying custom patch guard in libexec/scoop-update.ps1..."
+          if grep -q "CUSTOM-PATCH: rajashekarthoutam/Scoop" libexec/scoop-update.ps1 && grep -q "Get-LocalBucket.*contains 'main'" libexec/scoop-update.ps1; then
+            echo "Patch integrity verified: Guard against missing 'main' bucket is intact."
+          else
+            echo "::error::ENG-01: Custom patch in libexec/scoop-update.ps1 was overwritten or missing!"
+            exit 1
+          fi
+
+      - name: Push Synchronized Changes
+        run: |
+          git push origin master
